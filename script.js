@@ -165,3 +165,5 @@ class TodoList {
 
 // Inisialisasi TodoList
 const todoList = new TodoList();
+
+// FUNCTION TO DO LIST
