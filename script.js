@@ -1,121 +1,167 @@
-// Array untuk menyimpan semua tugas
-let tasks = []; // Array utama untuk menyimpan semua objek tugas yang ditambahkan oleh pengguna
-let undoStack = []; // Stack untuk menyimpan tugas yang dihapus sementara untuk fitur "Undo"
-
-// Fungsi untuk menambahkan tugas baru ke array dan menampilkannya di daftar
-function addTask() {
-  const taskInput = document.getElementById("taskInput"); // Mengambil elemen input dari HTML
-  const taskText = taskInput.value.trim(); // Mengambil teks dari input dan menghapus spasi di awal dan akhir
-  
-  function enqueueTask() {
-    const taskInput = document.getElementById("taskInput");
-    const taskText = taskInput.value.trim();
-  
-    if (taskText !== "") {
-      const task = { name: taskText };
-      tasks.push(task); // Menambahkan tugas ke akhir array
-      taskInput.value = "";
-      renderTasks();
-    } else {
-      alert("Tambahkan list yang ingin dibuat...");
+class Stack {
+    constructor() {
+        this.items = [];
     }
-  }
+    
+    push(element) {
+        this.items.push(element);
+    }
+    
+    pop() {
+        if (this.isEmpty()) return null;
+        return this.items.pop();
+    }
+    
+    isEmpty() {
+        return this.items.length === 0;
+    }
 
-  // Jika pengguna memasukkan teks
-  if (taskText !== "") {
-    const task = {
-      name: taskText,      // Nama tugas yang diambil dari input pengguna
-    };
-    tasks.push(task);     // Menambahkan objek tugas ke array "tasks"
-    taskInput.value = ""; // Mengosongkan input setelah tugas ditambahkan
-    renderTasks();        // Memperbarui tampilan daftar tugas di halaman
-  } else {
-    // Jika input kosong, tampilkan pesan peringatan
-    alert("Please enter a task!");
-  }
+    peek() {
+        return this.items[this.items.length - 1];
+    }
 }
 
-// Fungsi untuk menghapus tugas dari daftar dan menambahkannya ke stack untuk fitur "Undo"
-function deleteTask(index) {
-  undoStack.push(tasks[index]); // Menyimpan tugas yang akan dihapus ke dalam stack "undoStack"
-  tasks.splice(index, 1);       // Menghapus tugas dari array "tasks" berdasarkan indeks
-  renderTasks();                // Memperbarui tampilan daftar tugas di halaman
+class Queue {
+    constructor() {
+        this.items = [];
+    }
+    
+    enqueue(element) {
+        this.items.push(element);
+    }
+    
+    dequeue() {
+        if (this.isEmpty()) return null;
+        return this.items.shift();
+    }
+    
+    isEmpty() {
+        return this.items.length === 0;
+    }
+
+    getItems() {
+        return [...this.items];
+    }
 }
 
-// Fungsi untuk mengembalikan tugas terakhir yang dihapus menggunakan stack "undoStack"
-function undo() {
-  if (undoStack.length > 0) {              // Cek apakah stack "undoStack" berisi tugas yang bisa dikembalikan
-    const lastDeletedTask = undoStack.pop(); // Mengambil tugas terakhir dari stack
-    tasks.push(lastDeletedTask);            // Menambahkan kembali tugas ke array "tasks"
-    renderTasks();                          // Memperbarui tampilan daftar tugas di halaman
-  } else {
-    // Jika tidak ada tugas yang bisa dikembalikan, tampilkan pesan
-    alert("Nothing to undo!");
-  }
+class TodoList {
+    constructor() {
+        this.taskQueue = new Queue();
+        this.undoStack = new Stack();
+        this.initializeElements();
+        this.attachEventListeners();
+    }
+
+    initializeElements() {
+        this.taskForm = document.getElementById('taskForm');
+        this.taskInput = document.getElementById('taskInput');
+        this.taskList = document.getElementById('taskList');
+        this.searchInput = document.getElementById('searchInput');
+        this.searchBtn = document.getElementById('searchBtn');
+        this.searchResults = document.getElementById('searchResults');
+        this.sortSelect = document.getElementById('sortSelect');
+        this.undoBtn = document.getElementById('undoBtn');
+    }
+
+    attachEventListeners() {
+        this.taskForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.addTask();
+        });
+
+        this.searchBtn.addEventListener('click', () => this.searchTask());
+        this.sortSelect.addEventListener('change', (e) => this.handleSort(e.target.value));
+        this.undoBtn.addEventListener('click', () => this.undo());
+    }
+
+    addTask() {
+        const taskText = this.taskInput.value.trim();
+        
+        if (taskText !== "") {
+            const task = { name: taskText, id: Date.now() };
+            this.taskQueue.enqueue(task);
+            this.taskInput.value = "";
+            this.renderTasks();
+        } else {
+            alert("Tambahkan list yang ingin dibuat...");
+        }
+    }
+
+    deleteTask(taskId) {
+        const tasks = this.taskQueue.getItems();
+        const taskIndex = tasks.findIndex(task => task.id === taskId);
+        
+        if (taskIndex !== -1) {
+            const deletedTask = tasks[taskIndex];
+            this.undoStack.push(deletedTask);
+            tasks.splice(taskIndex, 1);
+            this.taskQueue.items = tasks;
+            this.renderTasks();
+        }
+    }
+
+    undo() {
+        if (!this.undoStack.isEmpty()) {
+            const lastTask = this.undoStack.pop();
+            this.taskQueue.enqueue(lastTask);
+            this.renderTasks();
+        } else {
+            alert("Tidak ada yang bisa di-undo!");
+        }
+    }
+
+    searchTask() {
+        const searchText = this.searchInput.value.trim().toLowerCase();
+        
+        if (searchText === "") {
+            this.searchResults.innerHTML = "";
+            alert("Tuliskan sesuatu!");
+            return;
+        }
+
+        const tasks = this.taskQueue.getItems();
+        const results = tasks.filter(task => 
+            task.name.toLowerCase().includes(searchText)
+        );
+        
+        this.renderSearchResults(results);
+    }
+
+    handleSort(value) {
+        const tasks = this.taskQueue.getItems();
+        
+        switch(value) {
+            case 'asc':
+                tasks.sort((a, b) => a.name.localeCompare(b.name));
+                break;
+            case 'desc':
+                tasks.sort((a, b) => b.name.localeCompare(a.name));
+                break;
+            default:
+                return;
+        }
+        
+        this.taskQueue.items = tasks;
+        this.renderTasks();
+    }
+
+    renderSearchResults(results) {
+        this.searchResults.innerHTML = results
+            .map(task => `<li>${task.name}</li>`)
+            .join('');
+    }
+
+    renderTasks() {
+        const tasks = this.taskQueue.getItems();
+        this.taskList.innerHTML = tasks
+            .map(task => `
+                <li>
+                    ${task.name}
+                    <span class="delete-btn" onclick="todoList.deleteTask(${task.id})">X</span>
+                </li>
+            `).join('');
+    }
 }
 
-// Fungsi untuk mencari tugas berdasarkan nama
-function searchTask() {
-  const searchInput = document.getElementById("searchInput").value.trim(); // Mengambil teks pencarian dan menghapus spasi
-
-  // Cek apakah input pencarian kosong
-  if (searchInput === "") {
-    const searchListElement = document.getElementById("searchResults"); 
-    searchListElement.innerHTML = "" 
-    alert("Tuliskan sesuatu!"); // Tampilkan notifikasi jika input pencarian kosong
-    return; // Hentikan fungsi jika input kosong
-  }
-
-  // Filter array "tasks" untuk mencari tugas yang mengandung teks pencarian
-  const result = tasks.filter(task => task.name.includes(searchInput));
-  renderSearchResults(result); // Tampilkan hasil pencarian
-}
-
-// Fungsi untuk menampilkan hasil pencarian dalam daftar HTML
-function renderSearchResults(results) {
-  const searchListElement = document.getElementById("searchResults"); // Mengambil elemen HTML untuk menampilkan hasil pencarian
-  searchListElement.innerHTML = results.map(task => `<li>${task.name}</li>`).join(''); // Mengubah hasil pencarian menjadi elemen <li> dan menambahkannya ke HTML
-}
-
-// Fungsi untuk menampilkan semua tugas di halaman HTML
-function renderTasks() {
-  const taskList = document.getElementById("taskList"); // Mengambil elemen HTML yang akan menampung daftar tugas
-  taskList.innerHTML = ""; // Mengosongkan elemen sebelum memperbarui
-
-  tasks.forEach((task, index) => {
-    const listItem = document.createElement("li"); // Membuat elemen <li> untuk setiap tugas
-    listItem.innerHTML = `${task.name} <span class="delete-btn" onclick="deleteTask(${index})">X</span>`; // Menambahkan nama tugas dan tombol hapus
-    taskList.appendChild(listItem); // Menambahkan elemen <li> ke dalam daftar
-  });
-}
-
-// Mengganti fungsi sort dengan handler untuk dropdown
-function handleSort(value) {
-  switch(value) {
-    case 'asc':
-      tasks.sort((a, b) => a.name.localeCompare(b.name));
-      break;
-    case 'desc':
-      tasks.sort((a, b) => b.name.localeCompare(a.name));
-      break;
-    default:
-      return;
-  }
-  renderTasks();
-}
-
-//menambah queue dan stack
-
-function enqueueTask() {
-  const taskInput = document.getElementById("taskInput");
-  const taskText = taskInput.value.trim();
-
-  if (taskText !== "") {
-    const task = { name: taskText };
-    tasks.push(task); // Menambahkan tugas ke akhir array
-    taskInput.value = "";
-    renderTasks();
-  } else {
-    alert("Tambahkan list yang ingin dibuat...");
-  }
-}
+// Inisialisasi TodoList
+const todoList = new TodoList();
